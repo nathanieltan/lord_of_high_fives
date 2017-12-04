@@ -1,0 +1,11 @@
+[package]
+name = "lord_of_high_fives"
+version = "0.1.0"
+authors = ["ntan"]
+build = "build.rs"
+
+[dependencies]
+sdl2 = "0.29"
+rand = "0.3"
+ggez = "*"
+nalgebra = "0.13.0"
