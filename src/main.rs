@@ -964,15 +964,15 @@ pub fn main() {
     
     match MainState::new(ctx) {
         Err(e) => {
-            println!("Could not load game!");
-            println!("Error: {}", e);
+            //println!("Could not load game!");
+            //println!("Error: {}", e);
         }
         Ok(ref mut game) => {
             let result = run(ctx,game);
             if let Err(e) = result {
-                println!("Error encountered running game: {}", e);
+                //println!("Error encountered running game: {}", e);
             } else {
-                println!("Game exited cleanly.");
+                //println!("Game exited cleanly.");
             }
         }
     }
