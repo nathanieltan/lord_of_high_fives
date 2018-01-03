@@ -4,14 +4,13 @@ extern crate nalgebra as na;
 
 use ggez::conf;
 use ggez::event::*;
-use ggez::{GameResult, Context};
+use ggez::{GameResult, Context, ContextBuilder};
 use ggez::graphics;
-use ggez::graphics::{Color, DrawMode, Point, FilterMode};
+use ggez::graphics::{Color, DrawMode, Point2, FilterMode};
 use ggez::timer;
 use std::time::Duration;
 use std::f64;
 use na::core::*;
-use na::geometry::Point2;
 
 use rand::{ThreadRng, thread_rng, Rng};
 
@@ -80,14 +79,14 @@ impl MainState {
             attention: create_attention(),
             body_reminder: create_body_reminder(),
             rng: thread_rng(),
-            fire: create_fire(((ctx.conf.window_width / 2) as f32)-100.0, (-1.0*(ctx.conf.window_height / 2) as f32)+100.0),
+            fire: create_fire(((ctx.conf.window_mode.width / 2) as f32)-100.0, (-1.0*(ctx.conf.window_mode.height / 2) as f32)+100.0),
             minions: vec![],
             dead_minions: vec![],
             rings: vec![create_ring(),create_goal_ring()],
             player: player,
             success_five: success_five,
-            screen_width: ctx.conf.window_width,
-            screen_height: ctx.conf.window_height,
+            screen_width: ctx.conf.window_mode.width,
+            screen_height: ctx.conf.window_mode.height,
             input: InputState::default(),
             assets: assets,
             score_display: score_display,
@@ -184,6 +183,7 @@ impl Assets {
         let fire_image = graphics::Image::new(ctx, "/fire.png")?;
         let end_screen_image = graphics::Image::new(ctx, "/end_screen.png")?;
 
+        graphics::set_background_color(ctx,graphics::Color::from_rgb(62,215,246));
         Ok(Assets{
             ring_image: ring_image,
             success_five_image: success_five_image,
@@ -247,13 +247,13 @@ enum ActorType {
 #[derive(Debug)]
 struct Actor {
     tag: ActorType,
-    pos: Point2<f32>,
+    pos: Point2,
     facing: f32,
     velocity: Vector2<f32>,
     accel: Vector2<f32>,
     rvel: f32,
     bbox_size: f32,
-    scale: Point,
+    scale: Point2,
     life: f32,
 }
 
@@ -270,7 +270,7 @@ fn create_body_reminder() -> Actor {
         rvel: 0.0,
         bbox_size: PLANET_BBOX,
         life: 1.0,
-        scale: Point::new(1.0,1.0),
+        scale: Point2::new(1.0,1.0),
     }
 }
 
@@ -284,7 +284,7 @@ fn create_fire(posx: f32, posy: f32) -> Actor {
         rvel: 0.0,
         bbox_size: PLANET_BBOX,
         life: PLANET_LIFE,
-        scale: Point::new(1.0,1.0),
+        scale: Point2::new(1.0,1.0),
     }
 }
 
@@ -298,7 +298,7 @@ fn create_attention() -> Actor {
         rvel: 0.0,
         bbox_size: PLANET_BBOX,
         life: 1.0,
-        scale: Point::new(1.0,1.0),
+        scale: Point2::new(1.0,1.0),
     }
 }
 fn create_success_five() -> Actor {
@@ -311,7 +311,7 @@ fn create_success_five() -> Actor {
         rvel: 0.0,
         bbox_size: PLANET_BBOX,
         life: SUCCESS_LIFE,
-        scale: Point::new(1.0,1.0),
+        scale: Point2::new(1.0,1.0),
     }
 }
 fn create_ring() -> Actor {
@@ -324,7 +324,7 @@ fn create_ring() -> Actor {
         rvel: 0.0,
         bbox_size: PLANET_BBOX,
         life: PLANET_LIFE,
-        scale: Point::new(1.0,1.0),
+        scale: Point2::new(1.0,1.0),
     }
 }
 
@@ -338,7 +338,7 @@ fn create_goal_ring() -> Actor {
         rvel: 0.0,
         bbox_size: PLANET_BBOX,
         life: PLANET_LIFE,
-        scale: Point::new(0.3,0.3),
+        scale: Point2::new(0.3,0.3),
     }
 }
 
@@ -352,7 +352,7 @@ fn create_dead_minion(posx: f32, posy: f32) -> Actor {
         rvel: 0.0,
         bbox_size: PLANET_BBOX,
         life: PLANET_LIFE,
-        scale: Point::new(0.5,0.5),
+        scale: Point2::new(0.5,0.5),
     }
 }
 
@@ -366,7 +366,7 @@ fn create_minion(posx: f32, posy: f32) -> Actor {
         rvel: 0.0,
         bbox_size: PLANET_BBOX,
         life: PLANET_LIFE,
-        scale: Point::new(0.5,0.5),
+        scale: Point2::new(0.5,0.5),
     }
 }
 
@@ -380,7 +380,7 @@ fn create_player() -> Actor {
         rvel: 0.0,
         bbox_size: PLAYER_BBOX,
         life: PLAYER_LIFE,
-        scale: Point::new(1.0,1.0),
+        scale: Point2::new(1.0,1.0),
     }
 }
 
@@ -464,7 +464,7 @@ fn draw_actor(assets: &mut Assets,
     let pos = world_to_screen_coords(screen_w, screen_h, actor.pos);
     let px = pos.x as f32;
     let py = pos.y as f32;
-    let dest_point = graphics::Point::new(px,py);
+    let dest_point = graphics::Point2::new(px,py);
     let image = assets.actor_image(actor);
     let rotation = 0.0;
     let pos_scale = (world_coords.1 *5)as f32 /(actor.pos.y+(world_coords.1 as f32 *5.5));
@@ -473,26 +473,25 @@ fn draw_actor(assets: &mut Assets,
         scale.x *= pos_scale;
         scale.y *= pos_scale;
     }
+    let drawparams = graphics::DrawParam {
+        dest: dest_point,
+        rotation: rotation,
+        scale: scale,
+        offset: graphics::Point2::new(0.5, 0.5),
+        .. Default::default()
+    };
+    graphics::draw_ex(ctx, image, drawparams)
 
-    graphics::draw_ex(ctx, 
-        image, 
-        graphics::DrawParam{
-            dest: dest_point,
-            rotation: rotation,
-            scale: scale,
-            ..Default::default()
-        }
-    )
 }
 
-fn draw_text(ctx: &mut Context, text: &mut graphics::Text, dest_point: Point) -> GameResult<()> {
+fn draw_text(ctx: &mut Context, text: &mut graphics::Text, dest_point: Point2) -> GameResult<()> {
     let rotation = 0.0;
         graphics::draw_ex(ctx, 
         text, 
         graphics::DrawParam{
             dest: dest_point,
             rotation: rotation,
-            scale: Point::new(1.0,1.0),
+            scale: Point2::new(1.0,1.0),
             ..Default::default()
         })
 }
@@ -502,7 +501,7 @@ fn draw_player(assets: &mut Assets, ctx: &mut Context,
     let pos = world_to_screen_coords(screen_w, screen_h, player.pos);
     let px = pos.x as f32;
     let py = pos.y as f32;
-    let dest_point = graphics::Point::new(px,py);
+    let dest_point = graphics::Point2::new(px,py);
     let mut image;
 
     if player.velocity.x > 0.0 {
@@ -574,7 +573,7 @@ fn draw_player(assets: &mut Assets, ctx: &mut Context,
 /// Translates the game coordinate system, with Y point up
 /// and the origin at the center to screen coordinate system,
 /// which has Y pointing down and origin at top-left corner
-fn world_to_screen_coords(screen_width: u32, screen_height: u32, point: Point2<f32>) -> Point2<f32> {
+fn world_to_screen_coords(screen_width: u32, screen_height: u32, point: Point2) -> Point2 {
     let width = screen_width as f32;
     let height = screen_height as f32;
     let x = point.x + width / 2.0;
@@ -586,124 +585,127 @@ fn world_to_screen_coords(screen_width: u32, screen_height: u32, point: Point2<f
 /// Event Handler
 /// ********************************************************************
 impl EventHandler for MainState {
-    fn update(&mut self, ctx: &mut Context, dt: Duration) -> GameResult<()> {
-        let time_passed = timer::duration_to_f64(dt) as f32;
-        self.update_ui(ctx);
+    fn update(&mut self, ctx: &mut Context) -> GameResult<()> {
+        const DESIRED_FPS: u32 = 60;
+        const DESIRED_FRAME_TIME: f32 = 1.0/60.0;
+        while timer::check_update_time(ctx, DESIRED_FPS) {
+            self.update_ui(ctx);
 
-        match self.state{
-            0 => {
-                update0(self, ctx, time_passed);
-                if self.attention.life == 1.0 && self.input.fire {
-                    self.state = 1;
-                    self.input.fire = false;
-                    self.rings[0].scale = Point::new(1.0,1.0);
-                    let shrink_speed = self.rng.gen_range(1.2,2.3);
-                    self.rings[0].velocity = Vector2::new(shrink_speed, shrink_speed);
-                    let goal_scale = self.rng.gen_range(0.2, 0.8);
-                    self.rings[1].scale = Point::new(goal_scale,goal_scale);
-                }
-                if self.timer <= 0.0 {
-                    self.state = 9;
-                }
-            }
-            1 => {
-                let result = update1(self, ctx, time_passed);
-                match result {
-                    1 => {
-                        for x in 0..self.minions.len(){
-                            if na::distance(&self.player.pos,&(self.minions[x].pos+Vector2::new(75.0,0.0))) < 50.0{
-                                self.minions.remove(x);
-                                break;
-                            }
-                        }
-                        let mut succeeded = false;
-                        while !succeeded{
-                            succeeded = add_minion(self);
-                        }
-                        self.attention.life = 0.0;
-                        self.state = 2;       
-                        self.score += 1;
-                        if self.score < 10{
-                            self.timer += 5.0;
-                        }
-                        else {
-                            self.timer += 3.0;
-                        }
+            match self.state{
+                0 => {
+                    update0(self, ctx, DESIRED_FRAME_TIME);
+                    if self.attention.life == 1.0 && self.input.fire {
+                        self.state = 1;
+                        self.input.fire = false;
+                        self.rings[0].scale = Point2::new(1.0,1.0);
+                        let shrink_speed = self.rng.gen_range(1.2,2.3);
+                        self.rings[0].velocity = Vector2::new(shrink_speed, shrink_speed);
+                        let goal_scale = self.rng.gen_range(0.2, 0.8);
+                        self.rings[1].scale = Point2::new(goal_scale,goal_scale);
                     }
-                    2 => {
-                        for x in 0..self.minions.len(){
-                            if na::distance(&self.player.pos,&(self.minions[x].pos+Vector2::new(75.0,0.0))) < 50.0{
-                                self.dead_minions.push(create_dead_minion(self.minions[x].pos.x, self.minions[x].pos.y));
-                                self.minions.remove(x);
-                                break;
+                    if self.timer <= 0.0 {
+                        self.state = 9;
+                    }
+                }
+                1 => {
+                    let result = update1(self, ctx, DESIRED_FRAME_TIME);
+                    match result {
+                        1 => {
+                            for x in 0..self.minions.len(){
+                                if na::distance(&self.player.pos,&(self.minions[x].pos+Vector2::new(20.0,100.0))) < 60.0{
+                                    self.minions.remove(x);
+                                    break;
+                                }
+                            }
+                            let mut succeeded = false;
+                            while !succeeded{
+                                succeeded = add_minion(self);
+                            }
+                            self.attention.life = 0.0;
+                            self.state = 2;       
+                            self.score += 1;
+                            if self.score < 10{
+                                self.timer += 5.0;
+                            }
+                            else {
+                                self.timer += 3.0;
                             }
                         }
-                        let mut succeeded = false;
-                        while !succeeded{
-                            succeeded = add_minion(self);
+                        2 => {
+                            for x in 0..self.minions.len(){
+                                if na::distance(&self.player.pos,&(self.minions[x].pos+Vector2::new(20.0,100.0))) < 60.0{
+                                    self.dead_minions.push(create_dead_minion(self.minions[x].pos.x, self.minions[x].pos.y));
+                                    self.minions.remove(x);
+                                    break;
+                                }
+                            }
+                            let mut succeeded = false;
+                            while !succeeded{
+                                succeeded = add_minion(self);
+                            }
+                            self.state = 0;
                         }
+                        _ => (),
+                    }
+
+                }
+                2 => {
+                    update0(self, ctx, DESIRED_FRAME_TIME);
+                    self.success_five.life -= 1.0;
+                    if self.success_five.life == 0.0 {
+                        self.success_five.life = SUCCESS_LIFE;
                         self.state = 0;
                     }
-                    _ => (),
                 }
-
-            }
-            2 => {
-                update0(self, ctx, time_passed);
-                self.success_five.life -= 1.0;
-                if self.success_five.life == 0.0 {
-                    self.success_five.life = SUCCESS_LIFE;
-                    self.state = 0;
+                3 => {
+                    let mut succeeded = false;
+                    for _x in 0..3{
+                        while !succeeded{
+                            succeeded = add_minion(self);
+                        }
+                        succeeded = false;
+                     }
+                    self.state = 4;
                 }
-            }
-            3 => {
-                let mut succeeded = false;
-                for _x in 0..3{
-                    while !succeeded{
-                        succeeded = add_minion(self);
+                4 => {
+                    if self.input.any_key {
+                        self.state = 5;
+                        self.input.any_key = false;
                     }
-                    succeeded = false;
-                 }
-                self.state = 4;
-            }
-            4 => {
-                if self.input.any_key {
-                    self.state = 5;
-                    self.input.any_key = false;
                 }
-            }
-            5 => {
-                if self.input.any_key {
-                    self.state = 6;
-                    self.input.any_key = false;
+                5 => {
+                    if self.input.any_key {
+                        self.state = 6;
+                        self.input.any_key = false;
+                    }
                 }
-            }
-            6 => {
-                if self.input.any_key {
-                    self.state = 7;
-                    self.input.any_key = false;
+                6 => {
+                    if self.input.any_key {
+                        self.state = 7;
+                        self.input.any_key = false;
+                    }
                 }
-            }
-            7 => {
-                if self.input.any_key {
-                    self.state = 8;
-                    self.input.any_key = false;
+                7 => {
+                    if self.input.any_key {
+                        self.state = 8;
+                        self.input.any_key = false;
+                    }
                 }
-            }
-            8 => {
-                if self.input.any_key {
-                    self.state = 0;
-                    self.input.any_key = false;
+                8 => {
+                    if self.input.any_key {
+                        self.state = 0;
+                        self.input.any_key = false;
+                    }
                 }
-            }
-            9 => {
+                9 => {
 
+                }
+                _ => (),
             }
-            _ => (),
-        }
 
-        if self.state < 3 {
-            self.timer -= time_passed;
+            if self.state < 3 {
+                self.timer -= DESIRED_FRAME_TIME;
+            }
         }
 
         Ok(())
@@ -716,9 +718,9 @@ impl EventHandler for MainState {
             let assets = &mut self.assets;
             let coords = (self.screen_width, self.screen_height);
 
-            let score_dest = Point::new((self.score_display.width() / 2) as f32 + 200.0,
+            let score_dest = Point2::new((self.score_display.width() / 2) as f32 + 200.0,
                                                     (self.score_display.height() / 2) as f32 + 10.0);
-            let timer_dest = Point::new(self.screen_width as f32 - 200.0 + (self.timer_display.width()/2) as f32 ,
+            let timer_dest = Point2::new(self.screen_width as f32 - 200.0 + (self.timer_display.width()/2) as f32 ,
                                                     20.0);
 
             match self.state{
@@ -765,34 +767,34 @@ impl EventHandler for MainState {
                     draw_actor(assets,ctx,&self.success_five,coords)?;                
                 }
                 3 => {
-                    graphics::draw(ctx, &assets.loading_image, Point::new((coords.0/2) as f32,(coords.1/2) as f32),0.0)?;
+                    graphics::draw(ctx, &assets.loading_image, Point2::new(0.0,0.0),0.0)?;
                 }
                 4 => {
-                    graphics::draw(ctx, &assets.start1_image, Point::new((coords.0/2) as f32,(coords.1/2) as f32),0.0)?;
+                    graphics::draw(ctx, &assets.start1_image, Point2::new(0.0,0.0),0.0)?;
                 }
                 5 => {
-                    graphics::draw(ctx, &assets.start2_image, Point::new((coords.0/2) as f32,(coords.1/2) as f32),0.0)?;
+                    graphics::draw(ctx, &assets.start2_image, Point2::new(0.0,0.0),0.0)?;
                 }
                 6 => {
-                    graphics::draw(ctx, &assets.start3_image, Point::new((coords.0/2) as f32,(coords.1/2) as f32),0.0)?;
+                    graphics::draw(ctx, &assets.start3_image, Point2::new(0.0,0.0),0.0)?;
                 }
                 7 => {
-                    graphics::draw(ctx, &assets.start4_image, Point::new((coords.0/2) as f32,(coords.1/2) as f32),0.0)?;
+                    graphics::draw(ctx, &assets.start4_image, Point2::new(0.0,0.0),0.0)?;
                 }
                 8 => {
-                    graphics::draw(ctx, &assets.controls_image, Point::new((coords.0/2) as f32,(coords.1/2) as f32),0.0)?;
+                    graphics::draw(ctx, &assets.controls_image, Point2::new(0.0,0.0),0.0)?;
                 }
                 9 => {
-                    graphics::draw(ctx, &assets.end_screen_image, Point::new((coords.0/2) as f32,(coords.1/2) as f32),0.0)?;
+                    graphics::draw(ctx, &assets.end_screen_image, Point2::new(0.0,0.0),0.0)?;
                     let font = &mut graphics::Font::new(ctx, "/OpenSans-ExtraBold.ttf", 32).unwrap();
                     let end_str1 = format!("Congratulations, You Have Made {} Friends", self.score);
                     let mut end_text1 = graphics::Text::new(ctx, &end_str1, font).unwrap();
-                    let end_dest1 = Point::new((self.screen_width/2) as f32 - 100.0,
-                                                    (self.screen_height/2) as f32);
+                    let end_dest1 = Point2::new(120.0,
+                                                    (self.screen_height/2) as f32 - 50.0);
                     let end_str2 = format!("Press Esc To Exit Game");
                     let mut end_text2 = graphics::Text::new(ctx, &end_str2, font).unwrap();
-                    let end_dest2 = Point::new((self.screen_width/2) as f32 - 100.0,
-                                                     (self.screen_height/2) as f32 + 50.0);
+                    let end_dest2 = Point2::new(120.0,
+                                                     (self.screen_height/2) as f32 );
                     graphics::set_color(ctx, graphics::BLACK)?;
                     draw_text(ctx, &mut end_text1, end_dest1)?;
                     draw_text(ctx, &mut end_text2, end_dest2)?;
@@ -815,6 +817,7 @@ impl EventHandler for MainState {
     }
 
     fn key_down_event(&mut self,
+                      ctx: &mut Context,
                       keycode: Keycode,
                       _keymod: Mod,
                       _repeat: bool) {
@@ -847,12 +850,15 @@ impl EventHandler for MainState {
             Keycode::Space => {
                 self.input.fire = true;
             }
+            Keycode::Escape => {
+                ctx.quit().unwrap();
+            }
             _ => (), // Do nothing
         }
     }
 
 
-    fn key_up_event(&mut self, keycode: Keycode, _keymod: Mod, _repeat: bool) {
+    fn key_up_event(&mut self, ctx: &mut Context, keycode: Keycode, _keymod: Mod, _repeat: bool) {
         self.input.any_key = false;
         match keycode {
             Keycode::W | Keycode::S => {
@@ -880,7 +886,7 @@ impl EventHandler for MainState {
 fn update0(game: &mut MainState, _ctx: &mut Context, dt: f32) {
     player_handle_input(&mut game.player, &game.input, dt);
     update_player_position(game, dt);
-    game.attention.pos = game.player.pos + Vector2::new(50.0,100.0);
+    game.attention.pos = game.player.pos + Vector2::new(70.0,40.0);
     game.body_reminder.pos = game.player.pos + Vector2::new(120.0,100.0);
 
     game.attention.life = 0.0;
@@ -889,11 +895,11 @@ fn update0(game: &mut MainState, _ctx: &mut Context, dt: f32) {
 
     //Detecting if player is close to minion
     for x in 0..game.minions.len() {
-        if na::distance(&game.player.pos,&(game.minions[x].pos+Vector2::new(75.0,0.0))) < 50.0 && game.dead_minions.len() == 0{
+        if na::distance(&game.player.pos,&(game.minions[x].pos+Vector2::new(20.0,100.0))) < 60.0 && game.dead_minions.len() == 0{
             game.attention.life = 1.0;
             break;
         }
-        if na::distance(&game.player.pos,&(game.minions[x].pos+Vector2::new(75.0,0.0))) < 50.0 && game.dead_minions.len() != 0{
+        if na::distance(&game.player.pos,&(game.minions[x].pos+Vector2::new(20.0,100.0))) < 60.0 && game.dead_minions.len() != 0{
             game.body_reminder.life = 1.0;
             break;
         }
@@ -901,14 +907,14 @@ fn update0(game: &mut MainState, _ctx: &mut Context, dt: f32) {
 
     //Detecting if player is close to dead_minion
     for x in 0..game.dead_minions.len() {
-        if na::distance(&game.player.pos,&game.dead_minions[x].pos) < 70.0 && game.input.fire{
-            game.dead_minions[x].pos = game.player.pos + Vector2::new(10.0,10.0);
+        if na::distance(&game.player.pos,&(game.dead_minions[x].pos+ Vector2::new(-40.0,70.0))) < 70.0 && game.input.fire{
+            game.dead_minions[x].pos = game.player.pos + Vector2::new(40.0,-70.0);
             break;
         }
     }
     // Burning the bodies
     for x in 0..game.dead_minions.len() {
-        if na::distance(&game.fire.pos,&game.dead_minions[x].pos) < 50.0 && game.input.fire{
+        if na::distance(&game.fire.pos,&game.dead_minions[x].pos) < 80.0 && game.input.fire{
             game.dead_minions.remove(x);
             break;
         }
@@ -956,11 +962,15 @@ fn shrink_ring(ring: &mut Actor, dt: f32) {
 /// Main Function
 /// ********************************************************************
 pub fn main() {
-    let mut c = conf::Conf::new();
-    c.window_title = "Lord of High Fives".to_string();
-    c.window_width = 1280;
-    c.window_height = 720;
-    let ctx = &mut Context::load_from_conf("Lord of High Fives", "Nathaniel", c).unwrap();
+    let mut cb = ContextBuilder::new("Lord of High Fives", "Nathaniel")
+        .window_setup(conf::WindowSetup::default()
+                      .title("Lord of High Fives")
+        )
+        .window_mode(conf::WindowMode::default()
+                     .dimensions(1280, 720)
+        );
+
+    let ctx = &mut cb.build().unwrap();
     
     match MainState::new(ctx) {
         Err(e) => {
